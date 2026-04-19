@@ -13,6 +13,23 @@ const appendTranscript = (base, addition) => {
   return `${base.trimEnd()}\n\n${next}`;
 };
 
+const emptyAnnotationDraft = {
+  quote: '',
+  note: '',
+  location: '',
+  tags: '',
+};
+
+const parseTags = (value) =>
+  Array.from(new Set(
+    String(value || '')
+      .split(',')
+      .map((tag) => tag.trim().replace(/^#/, ''))
+      .filter(Boolean)
+  ));
+
+const formatTags = (tags) => (tags || []).join(', ');
+
 export function Journal({ state, setState }) {
   const activeId = state.activeBookId || state.books[0]?.id;
   const book = state.books.find((b) => b.id === activeId);
@@ -20,9 +37,14 @@ export function Journal({ state, setState }) {
 
   const entries = (state.entries[activeId] || []).slice().sort((a, b) => b.date.localeCompare(a.date));
   const todayEntry = entries.find((e) => e.date === todayIso);
+  const annotations = ((state.annotations || {})[activeId] || [])
+    .slice()
+    .sort((a, b) => (b.createdAt || b.date || '').localeCompare(a.createdAt || a.date || ''));
 
   const [text, setText] = React.useState(todayEntry?.text || '');
   const [pages, setPages] = React.useState(book?.pagesToday || 0);
+  const [annotationDraft, setAnnotationDraft] = React.useState(emptyAnnotationDraft);
+  const [editingAnnotationId, setEditingAnnotationId] = React.useState(null);
   const [savedFlash, setSavedFlash] = React.useState(false);
   const [listening, setListening] = React.useState(false);
   const [interimTranscript, setInterimTranscript] = React.useState('');
@@ -33,6 +55,8 @@ export function Journal({ state, setState }) {
   React.useEffect(() => {
     setText(todayEntry?.text || '');
     setPages(book?.pagesToday || 0);
+    setAnnotationDraft(emptyAnnotationDraft);
+    setEditingAnnotationId(null);
     setInterimTranscript('');
     setSpeechError('');
     recognitionRef.current?.abort();
@@ -133,6 +157,79 @@ export function Journal({ state, setState }) {
     else startVoiceNote();
   };
 
+  const saveAnnotation = () => {
+    if (!book) return;
+    const quote = annotationDraft.quote.trim();
+    const note = annotationDraft.note.trim();
+    const location = annotationDraft.location.trim();
+    const tags = parseTags(annotationDraft.tags);
+
+    if (!quote && !note) return;
+
+    const now = new Date().toISOString();
+    setState((s) => {
+      const current = ((s.annotations || {})[activeId] || []).slice();
+      const existing = current.find((a) => a.id === editingAnnotationId);
+      const nextAnnotation = {
+        id: editingAnnotationId || `ann-${Math.random().toString(36).slice(2, 10)}`,
+        date: existing?.date || todayIso,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+        quote,
+        note,
+        location,
+        tags,
+        source: existing?.source || 'manual',
+      };
+
+      const nextList = editingAnnotationId
+        ? current.map((a) => (a.id === editingAnnotationId ? nextAnnotation : a))
+        : [nextAnnotation, ...current];
+
+      return {
+        ...s,
+        annotations: {
+          ...(s.annotations || {}),
+          [activeId]: nextList,
+        },
+      };
+    });
+
+    setAnnotationDraft(emptyAnnotationDraft);
+    setEditingAnnotationId(null);
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 1200);
+  };
+
+  const editAnnotation = (annotation) => {
+    setEditingAnnotationId(annotation.id);
+    setAnnotationDraft({
+      quote: annotation.quote || '',
+      note: annotation.note || '',
+      location: annotation.location || '',
+      tags: formatTags(annotation.tags),
+    });
+  };
+
+  const deleteAnnotation = (id) => {
+    setState((s) => ({
+      ...s,
+      annotations: {
+        ...(s.annotations || {}),
+        [activeId]: ((s.annotations || {})[activeId] || []).filter((a) => a.id !== id),
+      },
+    }));
+    if (editingAnnotationId === id) {
+      setEditingAnnotationId(null);
+      setAnnotationDraft(emptyAnnotationDraft);
+    }
+  };
+
+  const cancelAnnotationEdit = () => {
+    setEditingAnnotationId(null);
+    setAnnotationDraft(emptyAnnotationDraft);
+  };
+
   if (!book) {
     return (
       <Card title="Today's notes" right={<span className="card-sub mono">{formatFullDate()}</span>}>
@@ -211,6 +308,85 @@ export function Journal({ state, setState }) {
         <div className="row" style={{ gap: 12 }}>
           <span>{wordCount} words</span>
           <span className={`journal-saved ${savedFlash ? 'show' : ''}`}>✓ saved</span>
+        </div>
+      </div>
+
+      <div className="annotation-panel">
+        <div className="annotation-head">
+          <div>
+            <div className="card-title">Marginalia</div>
+            <div className="annotation-sub">Save the passage and your thought as one object.</div>
+          </div>
+          <span className="card-sub mono">{annotations.length} saved</span>
+        </div>
+
+        <div className="annotation-form">
+          <textarea
+            className="annotation-field annotation-quote-input"
+            placeholder="Quote / passage"
+            value={annotationDraft.quote}
+            onChange={(e) => setAnnotationDraft((draft) => ({ ...draft, quote: e.target.value }))}
+          />
+          <textarea
+            className="annotation-field annotation-note-input"
+            placeholder="My thought"
+            value={annotationDraft.note}
+            onChange={(e) => setAnnotationDraft((draft) => ({ ...draft, note: e.target.value }))}
+          />
+          <div className="annotation-meta-row">
+            <input
+              className="annotation-input"
+              placeholder="Page, chapter, section"
+              value={annotationDraft.location}
+              onChange={(e) => setAnnotationDraft((draft) => ({ ...draft, location: e.target.value }))}
+            />
+            <input
+              className="annotation-input"
+              placeholder="tags: justice, image, question"
+              value={annotationDraft.tags}
+              onChange={(e) => setAnnotationDraft((draft) => ({ ...draft, tags: e.target.value }))}
+            />
+            <button
+              className="btn primary"
+              onClick={saveAnnotation}
+              disabled={!annotationDraft.quote.trim() && !annotationDraft.note.trim()}
+            >
+              {editingAnnotationId ? 'Update' : 'Save'}
+            </button>
+            {editingAnnotationId && (
+              <button className="btn ghost" onClick={cancelAnnotationEdit}>Cancel</button>
+            )}
+          </div>
+        </div>
+
+        <div className="annotation-list">
+          {annotations.length === 0 ? (
+            <div className="empty muted">No marginalia yet. Add a quote, a thought, or both.</div>
+          ) : annotations.slice(0, 8).map((annotation) => (
+            <article key={annotation.id} className="annotation-card">
+              <div className="annotation-card-head">
+                <div className="annotation-date mono">
+                  <span>{formatDate(annotation.date)}</span>
+                  {annotation.location && <span>{annotation.location}</span>}
+                </div>
+                <div className="row" style={{ gap: 4 }}>
+                  <button className="btn small ghost" onClick={() => editAnnotation(annotation)}>Edit</button>
+                  <button className="btn small ghost" onClick={() => deleteAnnotation(annotation.id)}>Delete</button>
+                </div>
+              </div>
+              {annotation.quote && (
+                <blockquote className="annotation-quote">{annotation.quote}</blockquote>
+              )}
+              {annotation.note && (
+                <div className="annotation-note serif">{annotation.note}</div>
+              )}
+              {annotation.tags?.length > 0 && (
+                <div className="annotation-tags">
+                  {annotation.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+                </div>
+              )}
+            </article>
+          ))}
         </div>
       </div>
 

@@ -333,19 +333,35 @@ export function CurrentlyReading({ state, setState, onPickBook, onManageContexts
         title: b.title, author: b.author, category: b.category,
         color: b.color, finishedOn: today(), totalPages: b.totalPages,
         entries: s.entries[id] || [],
+        annotations: s.annotations?.[id] || [],
       };
       const nextActive = s.activeBookId === id ? s.books.filter((x) => x.id !== id)[0]?.id : s.activeBookId;
       const nextEntries = { ...s.entries }; delete nextEntries[id];
-      return { ...s, books: s.books.filter((x) => x.id !== id), entries: nextEntries, completed: [finished, ...s.completed], activeBookId: nextActive };
+      const nextAnnotations = { ...(s.annotations || {}) }; delete nextAnnotations[id];
+      return {
+        ...s,
+        books: s.books.filter((x) => x.id !== id),
+        entries: nextEntries,
+        annotations: nextAnnotations,
+        completed: [finished, ...s.completed],
+        activeBookId: nextActive,
+      };
     });
   };
 
   const removeBook = (id) => {
-    if (!confirm('Remove this book? Its journal entries will be discarded.')) return;
+    if (!confirm('Remove this book? Its journal entries and annotations will be discarded.')) return;
     setState((s) => {
       const nextEntries = { ...s.entries }; delete nextEntries[id];
+      const nextAnnotations = { ...(s.annotations || {}) }; delete nextAnnotations[id];
       const nextActive = s.activeBookId === id ? s.books.filter((x) => x.id !== id)[0]?.id : s.activeBookId;
-      return { ...s, books: s.books.filter((x) => x.id !== id), entries: nextEntries, activeBookId: nextActive };
+      return {
+        ...s,
+        books: s.books.filter((x) => x.id !== id),
+        entries: nextEntries,
+        annotations: nextAnnotations,
+        activeBookId: nextActive,
+      };
     });
   };
 
@@ -604,6 +620,7 @@ export function RecentlyFinished({ state, setState }) {
         ...s,
         books: [...s.books, b],
         entries: { ...s.entries, [b.id]: c.entries || [] },
+        annotations: { ...(s.annotations || {}), [b.id]: c.annotations || [] },
         completed: s.completed.filter((x) => x.id !== c.id),
         activeBookId: b.id,
       };
@@ -611,15 +628,16 @@ export function RecentlyFinished({ state, setState }) {
   };
 
   if (sorted.length === 0) {
-    return <Card title="Recently finished"><div className="empty muted">Nothing finished yet. Mark a book finished from its row menu and it will land here with its full journal.</div></Card>;
+    return <Card title="Recently finished"><div className="empty muted">Nothing finished yet. Mark a book finished from its row menu and it will land here with its journal and marginalia.</div></Card>;
   }
 
   return (
-    <Card title={`Recently finished · ${sorted.length}`} right={<span className="card-sub">Journals preserved</span>}>
+    <Card title={`Recently finished · ${sorted.length}`} right={<span className="card-sub">Journals + marginalia preserved</span>}>
       <div className="finished-list">
         {sorted.map((c) => {
           const isOpen = expanded === c.id;
           const entries = (c.entries || []).slice().sort((a, b) => b.date.localeCompare(a.date));
+          const annotationCount = (c.annotations || []).length;
           return (
             <div key={c.id} className={`finished ${isOpen ? 'open' : ''}`}>
               <div className="finished-head" onClick={() => setExpanded(isOpen ? null : c.id)} role="button" tabIndex={0}>
@@ -636,6 +654,7 @@ export function RecentlyFinished({ state, setState }) {
                 </div>
                 <div className="finished-meta mono muted">
                   {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+                  {annotationCount > 0 && ` · ${annotationCount} ${annotationCount === 1 ? 'note' : 'notes'}`}
                   <svg className={`chev ${isOpen ? 'up' : ''}`} viewBox="0 0 24 24" width="14" height="14">
                     <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>

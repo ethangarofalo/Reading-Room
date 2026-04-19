@@ -30,7 +30,7 @@ export function Tweaks({ state, setState, visible, onClose }) {
   const exportObsidian = () => {
     const { markdown, count } = buildObsidianMarkdown(state);
     if (count === 0) {
-      alert('No journal entries to export yet.');
+      alert('No journal entries or annotations to export yet.');
       return;
     }
 

@@ -28,6 +28,7 @@ export const mmss = (totalSeconds) => {
 export const DEFAULT_STATE = {
   books: [],
   entries: {},
+  annotations: {},
   completed: [],
   plan: [],
   contexts: [],
