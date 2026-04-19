@@ -1,33 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Reading Room icon">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#f6f1e8"/>
-      <stop offset="1" stop-color="#e8dcc8"/>
+    <linearGradient id="paper" x1="70" y1="54" x2="442" y2="466" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#f1e7d7"/>
+    </linearGradient>
+    <linearGradient id="leftPage" x1="108" y1="128" x2="254" y2="376" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d55b35"/>
+      <stop offset="1" stop-color="#ad351f"/>
+    </linearGradient>
+    <linearGradient id="rightPage" x1="258" y1="128" x2="404" y2="376" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c84b29"/>
+      <stop offset="1" stop-color="#922b1b"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <!-- Open book glyph -->
-  <g transform="translate(96 132)">
-    <path d="M0 30 Q0 0 40 0 L150 0 Q160 0 160 12 L160 220 Q160 232 150 232 L40 232 Q0 232 0 262 Z"
-          fill="#c1502c"/>
-    <path d="M320 30 Q320 0 280 0 L170 0 Q160 0 160 12 L160 220 Q160 232 170 232 L280 232 Q320 232 320 262 Z"
-          fill="#a4421f"/>
-    <line x1="160" y1="0" x2="160" y2="232" stroke="#f6f1e8" stroke-width="4"/>
-    <!-- Page lines left -->
-    <g stroke="#f6f1e8" stroke-width="6" stroke-linecap="round" opacity="0.8">
-      <line x1="32" y1="50"  x2="130" y2="50"/>
-      <line x1="32" y1="80"  x2="130" y2="80"/>
-      <line x1="32" y1="110" x2="110" y2="110"/>
-      <line x1="32" y1="150" x2="130" y2="150"/>
-      <line x1="32" y1="180" x2="120" y2="180"/>
-    </g>
-    <!-- Page lines right -->
-    <g stroke="#f6f1e8" stroke-width="6" stroke-linecap="round" opacity="0.8">
-      <line x1="190" y1="50"  x2="288" y2="50"/>
-      <line x1="190" y1="80"  x2="288" y2="80"/>
-      <line x1="190" y1="110" x2="268" y2="110"/>
-      <line x1="190" y1="150" x2="288" y2="150"/>
-      <line x1="190" y1="180" x2="278" y2="180"/>
+
+  <rect x="18" y="18" width="476" height="476" rx="94" fill="url(#paper)"/>
+  <rect x="18" y="18" width="476" height="476" rx="94" fill="none" stroke="#eadfcd" stroke-width="10"/>
+
+  <g transform="translate(74 106)">
+    <path
+      d="M30 55C30 25 56 8 96 8h110c18 0 28 10 28 28v257c0 10-8 17-18 12-28-14-63-22-105-22H82c-34 0-52 18-52 49V55Z"
+      fill="url(#leftPage)"/>
+    <path
+      d="M334 55c0-30-26-47-66-47H158c-18 0-28 10-28 28v257c0 10 8 17 18 12 28-14 63-22 105-22h29c34 0 52 18 52 49V55Z"
+      fill="url(#rightPage)" transform="translate(0 0)"/>
+    <path d="M182 28v274" fill="none" stroke="#fff7ec" stroke-width="7" stroke-linecap="round"/>
+
+    <path
+      d="M108 82c42-17 86-7 99 23 15 34-21 66-67 54-30-8-34-36-11-47 18-8 36 3 32 18"
+      fill="none" stroke="#fff7ec" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" opacity=".96"/>
+    <path
+      d="M254 95c34-12 67-6 81 16 18 29-8 62-48 56-24-4-32-24-18-38 13-13 34-8 38 7"
+      fill="none" stroke="#fff7ec" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" opacity=".92"/>
+
+    <g stroke="#fff7ec" stroke-width="8" stroke-linecap="round" opacity=".82">
+      <path d="M72 195h74"/>
+      <path d="M72 228h92"/>
+      <path d="M72 261h66"/>
+      <path d="M222 195h78"/>
+      <path d="M222 228h88"/>
+      <path d="M222 261h62"/>
     </g>
   </g>
 </svg>

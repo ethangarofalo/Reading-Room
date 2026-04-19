@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
 const svg = readFileSync(resolve(root, 'public/icon.svg'));
+const ogSvg = readFileSync(resolve(root, 'public/og-image.svg'));
 
 // Maskable variant: same icon but with a safe-zone background that fills the canvas
 const maskableSvg = Buffer.from(`
@@ -28,3 +29,6 @@ for (const t of targets) {
   await sharp(t.src).resize(t.size, t.size).png().toFile(resolve(root, t.out));
   console.log('wrote', t.out);
 }
+
+await sharp(ogSvg).resize(1200, 630).png().toFile(resolve(root, 'public/og-image.png'));
+console.log('wrote public/og-image.png');
