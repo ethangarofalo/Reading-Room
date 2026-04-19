@@ -136,6 +136,7 @@ a { color: inherit; }
   max-width: 1400px;
   margin: 0 auto;
   padding: clamp(16px, 3vw, 40px);
+  padding-top: calc(clamp(16px, 3vw, 40px) + env(safe-area-inset-top, 0px));
   padding-bottom: 120px;
 }
 
@@ -1039,7 +1040,9 @@ a { color: inherit; }
 .focus-dial { --size: 260px; }
 .focus-dial .dial-time { font-size: 56px; }
 .focus-exit {
-  position: fixed; top: 20px; right: 20px;
+  position: fixed;
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  right: calc(20px + env(safe-area-inset-right, 0px));
 }
 .focus-prompts {
   text-align: center;
@@ -1284,6 +1287,45 @@ a { color: inherit; }
   .book-spine { width: 42px; height: 58px; font-size: 9px; }
 }
 
+@media (max-width: 720px) {
+  .app {
+    padding-inline: max(14px, env(safe-area-inset-left, 0px)) max(14px, env(safe-area-inset-right, 0px));
+    padding-top: calc(18px + env(safe-area-inset-top, 0px));
+  }
+
+  .topbar {
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+  }
+
+  .brand {
+    align-items: center;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .brand h1 {
+    font-size: 20px;
+    line-height: 1.05;
+  }
+
+  .brand .sub {
+    flex-basis: 100%;
+    margin-left: 18px;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .topbar-right {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+}
+
 /* ===== Mobile tabbar (added by Vite migration) ===== */
 .tabbar {
   display: flex;
@@ -1294,7 +1336,7 @@ a { color: inherit; }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   position: sticky;
-  top: 0;
+  top: max(8px, env(safe-area-inset-top, 0px));
   z-index: 10;
 }
 .tabbar-btn {
@@ -1315,7 +1357,7 @@ a { color: inherit; }
 
 /* iOS safe-area padding for the bottom of the app */
 @supports (padding: max(0px)) {
-  .app { padding-bottom: max(120px, env(safe-area-inset-bottom)); }
+  .app { padding-bottom: max(120px, calc(24px + env(safe-area-inset-bottom, 0px))); }
 }
 
 /* Tweaks panel — make it a slide-in drawer instead of fixed */
