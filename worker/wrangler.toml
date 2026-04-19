@@ -1,0 +1,10 @@
+name = "reading-room-sync"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "ROOMS"
+id = "4be325b4d6054029afee29184d021e72"
+
+[vars]
+ALLOWED_ORIGIN = "*"

@@ -7,9 +7,10 @@ import {
   TodayPlan, CurrentlyReading, RecentlyFinished, ContextsPanel,
 } from './library.jsx';
 import { Journal } from './journal.jsx';
-import { StatsStrip, Heatmap } from './stats.jsx';
+import { StatsStrip, Heatmap, ReadingVelocity } from './stats.jsx';
 import { FocusMode } from './focus.jsx';
 import { Tweaks } from './tweaks.jsx';
+import { useSync } from './useSync.js';
 
 const TABS = [
   { id: 'today',   label: 'Today' },
@@ -36,6 +37,7 @@ export default function App() {
   const [contextsOpen, setContextsOpen] = React.useState(false);
   const [tab, setTab] = React.useState('today');
   const isMobile = useIsMobile();
+  const sync = useSync(state, setState);
 
   React.useEffect(() => {
     document.body.dataset.theme = state.theme || 'paper';
@@ -55,6 +57,7 @@ export default function App() {
           <DeepWorkTimer state={state} setState={setState} onComplete={handleTimerComplete} />
         </Card>
         <Heatmap state={state} />
+        <ReadingVelocity state={state} />
       </div>
       <div className="col">
         <CurrentlyReading
@@ -91,7 +94,12 @@ export default function App() {
         </>
       )}
       {tab === 'journal' && <Journal state={state} setState={setState} />}
-      {tab === 'stats' && <Heatmap state={state} />}
+      {tab === 'stats' && (
+        <>
+          <Heatmap state={state} />
+          <ReadingVelocity state={state} />
+        </>
+      )}
     </div>
   );
 
@@ -144,7 +152,7 @@ export default function App() {
       {focusMode && (
         <FocusMode state={state} setState={setState} bookId={focusMode} onExit={() => setFocusMode(null)} />
       )}
-      <Tweaks state={state} setState={setState} visible={tweaksVisible} onClose={() => setTweaksVisible(false)} />
+      <Tweaks state={state} setState={setState} visible={tweaksVisible} onClose={() => setTweaksVisible(false)} sync={sync} />
     </div>
   );
 }

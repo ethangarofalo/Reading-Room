@@ -13,12 +13,86 @@ const appendTranscript = (base, addition) => {
   return `${base.trimEnd()}\n\n${next}`;
 };
 
+const MARK_KINDS = ['underline', 'circle', 'bracket'];
+
+const COLOR_OPTIONS = [
+  { id: null,         label: 'None',       tone: 'transparent' },
+  { id: 'question',   label: 'Question',   tone: 'oklch(70% 0.15 240)' },
+  { id: 'claim',      label: 'Key claim',  tone: 'oklch(60% 0.18 25)'  },
+  { id: 'definition', label: 'Definition', tone: 'oklch(60% 0.15 150)' },
+  { id: 'image',      label: 'Image',      tone: 'oklch(70% 0.14 80)'  },
+  { id: 'tension',    label: 'Tension',    tone: 'oklch(55% 0.18 320)' },
+];
+
 const emptyAnnotationDraft = {
   quote: '',
   note: '',
   location: '',
   tags: '',
+  marks: [],
+  links: [],
+  color: null,
 };
+
+const splitWords = (text) => String(text || '').split(/(\s+)/).filter((s) => s.length > 0);
+
+const isWord = (token) => /\S/.test(token);
+
+const wordIndices = (tokens) => {
+  const idx = [];
+  let w = 0;
+  tokens.forEach((tok, i) => {
+    if (isWord(tok)) { idx[i] = w; w += 1; } else { idx[i] = null; }
+  });
+  return idx;
+};
+
+const hasMark = (marks, word, kind) => marks.some((m) => m.word === word && m.kind === kind);
+
+const toggleMark = (marks, word, kind) => {
+  if (hasMark(marks, word, kind)) return marks.filter((m) => !(m.word === word && m.kind === kind));
+  return [...marks, { word, kind }];
+};
+
+const adjacentSameKind = (marks, word, kind) =>
+  marks.some((m) => m.kind === kind && (m.word === word - 1 || m.word === word + 1));
+
+function MarkedQuote({ quote, marks, interactive, activeMark, onToggleMark }) {
+  if (!quote) return null;
+  const tokens = splitWords(quote);
+  const idx = wordIndices(tokens);
+  const safeMarks = marks || [];
+  return (
+    <div className={`marked-quote ${interactive ? 'interactive' : ''}`}>
+      {tokens.map((tok, i) => {
+        if (!isWord(tok)) return <span key={i}>{tok}</span>;
+        const w = idx[i];
+        const u = hasMark(safeMarks, w, 'underline');
+        const c = hasMark(safeMarks, w, 'circle');
+        const b = hasMark(safeMarks, w, 'bracket');
+        const cls = [
+          'mq-word',
+          u && 'mq-underline',
+          c && 'mq-circle',
+          b && 'mq-bracket',
+          u && adjacentSameKind(safeMarks, w, 'underline') && 'mq-underline-join',
+          b && adjacentSameKind(safeMarks, w, 'bracket') && 'mq-bracket-join',
+        ].filter(Boolean).join(' ');
+        return (
+          <span
+            key={i}
+            className={cls}
+            onClick={interactive ? () => onToggleMark(w, activeMark) : undefined}
+            role={interactive ? 'button' : undefined}
+            tabIndex={interactive ? 0 : undefined}
+          >
+            {tok}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 const parseTags = (value) =>
   Array.from(new Set(
@@ -45,6 +119,8 @@ export function Journal({ state, setState }) {
   const [pages, setPages] = React.useState(book?.pagesToday || 0);
   const [annotationDraft, setAnnotationDraft] = React.useState(emptyAnnotationDraft);
   const [editingAnnotationId, setEditingAnnotationId] = React.useState(null);
+  const [activeMark, setActiveMark] = React.useState('underline');
+  const [linkPickerOpen, setLinkPickerOpen] = React.useState(false);
   const [savedFlash, setSavedFlash] = React.useState(false);
   const [listening, setListening] = React.useState(false);
   const [interimTranscript, setInterimTranscript] = React.useState('');
@@ -170,6 +246,7 @@ export function Journal({ state, setState }) {
     setState((s) => {
       const current = ((s.annotations || {})[activeId] || []).slice();
       const existing = current.find((a) => a.id === editingAnnotationId);
+      const validMarks = (annotationDraft.marks || []).filter((m) => MARK_KINDS.includes(m.kind));
       const nextAnnotation = {
         id: editingAnnotationId || `ann-${Math.random().toString(36).slice(2, 10)}`,
         date: existing?.date || todayIso,
@@ -180,6 +257,10 @@ export function Journal({ state, setState }) {
         location,
         tags,
         source: existing?.source || 'manual',
+        marks: validMarks,
+        links: annotationDraft.links || [],
+        color: annotationDraft.color || null,
+        anchor: existing?.anchor || { prefix: '', suffix: '' },
       };
 
       const nextList = editingAnnotationId
@@ -197,6 +278,7 @@ export function Journal({ state, setState }) {
 
     setAnnotationDraft(emptyAnnotationDraft);
     setEditingAnnotationId(null);
+    setLinkPickerOpen(false);
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1200);
   };
@@ -208,6 +290,9 @@ export function Journal({ state, setState }) {
       note: annotation.note || '',
       location: annotation.location || '',
       tags: formatTags(annotation.tags),
+      marks: annotation.marks || [],
+      links: annotation.links || [],
+      color: annotation.color || null,
     });
   };
 
@@ -327,12 +412,120 @@ export function Journal({ state, setState }) {
             value={annotationDraft.quote}
             onChange={(e) => setAnnotationDraft((draft) => ({ ...draft, quote: e.target.value }))}
           />
+
+          {annotationDraft.quote.trim() && (
+            <div className="mark-editor">
+              <div className="mark-toolbar">
+                <span className="mark-label muted">Mark words:</span>
+                {MARK_KINDS.map((kind) => (
+                  <button
+                    key={kind}
+                    className={`btn small ${activeMark === kind ? 'primary' : 'ghost'}`}
+                    onClick={() => setActiveMark(kind)}
+                    type="button"
+                  >
+                    {kind}
+                  </button>
+                ))}
+                {annotationDraft.marks.length > 0 && (
+                  <button
+                    className="btn small ghost"
+                    onClick={() => setAnnotationDraft((d) => ({ ...d, marks: [] }))}
+                    type="button"
+                  >
+                    Clear marks
+                  </button>
+                )}
+              </div>
+              <MarkedQuote
+                quote={annotationDraft.quote}
+                marks={annotationDraft.marks}
+                interactive
+                activeMark={activeMark}
+                onToggleMark={(word, kind) =>
+                  setAnnotationDraft((d) => ({ ...d, marks: toggleMark(d.marks || [], word, kind) }))
+                }
+              />
+            </div>
+          )}
+
           <textarea
             className="annotation-field annotation-note-input"
             placeholder="My thought"
             value={annotationDraft.note}
             onChange={(e) => setAnnotationDraft((draft) => ({ ...draft, note: e.target.value }))}
           />
+
+          <div className="annotation-color-row">
+            <span className="muted" style={{ fontSize: 12 }}>Color:</span>
+            {COLOR_OPTIONS.map((c) => (
+              <button
+                key={c.id || 'none'}
+                type="button"
+                className={`color-swatch ${annotationDraft.color === c.id ? 'active' : ''}`}
+                style={{ background: c.tone, borderStyle: c.id ? 'solid' : 'dashed' }}
+                title={c.label}
+                onClick={() => setAnnotationDraft((d) => ({ ...d, color: c.id }))}
+              />
+            ))}
+          </div>
+
+          <div className="annotation-link-row">
+            <button className="btn small ghost" type="button" onClick={() => setLinkPickerOpen((o) => !o)}>
+              {linkPickerOpen ? 'Close links' : `Link to marginal (${annotationDraft.links.length})`}
+            </button>
+            {annotationDraft.links.length > 0 && (
+              <div className="annotation-link-chips">
+                {annotationDraft.links.map((linkId) => {
+                  const target = annotations.find((a) => a.id === linkId);
+                  if (!target) return null;
+                  const preview = (target.quote || target.note || '').slice(0, 32);
+                  return (
+                    <span key={linkId} className="link-chip">
+                      {preview}…
+                      <button
+                        type="button"
+                        onClick={() => setAnnotationDraft((d) => ({ ...d, links: d.links.filter((id) => id !== linkId) }))}
+                      >×</button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {linkPickerOpen && (
+            <div className="link-picker">
+              {annotations.filter((a) => a.id !== editingAnnotationId).slice(0, 12).length === 0 ? (
+                <div className="muted" style={{ fontSize: 12 }}>No other marginalia on this book yet.</div>
+              ) : (
+                annotations
+                  .filter((a) => a.id !== editingAnnotationId)
+                  .slice(0, 12)
+                  .map((a) => {
+                    const linked = annotationDraft.links.includes(a.id);
+                    const preview = (a.quote || a.note || '').slice(0, 64);
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        className={`link-option ${linked ? 'active' : ''}`}
+                        onClick={() =>
+                          setAnnotationDraft((d) => ({
+                            ...d,
+                            links: linked ? d.links.filter((id) => id !== a.id) : [...d.links, a.id],
+                          }))
+                        }
+                      >
+                        <span className="muted mono" style={{ fontSize: 11 }}>{formatDate(a.date)}</span>
+                        <span>{preview}…</span>
+                      </button>
+                    );
+                  })
+              )}
+            </div>
+          )}
+
           <div className="annotation-meta-row">
             <input
               className="annotation-input"
@@ -362,31 +555,76 @@ export function Journal({ state, setState }) {
         <div className="annotation-list">
           {annotations.length === 0 ? (
             <div className="empty muted">No marginalia yet. Add a quote, a thought, or both.</div>
-          ) : annotations.slice(0, 8).map((annotation) => (
-            <article key={annotation.id} className="annotation-card">
-              <div className="annotation-card-head">
-                <div className="annotation-date mono">
-                  <span>{formatDate(annotation.date)}</span>
-                  {annotation.location && <span>{annotation.location}</span>}
+          ) : annotations.slice(0, 8).map((annotation) => {
+            const colorTone = COLOR_OPTIONS.find((c) => c.id === annotation.color)?.tone;
+            const linkedTargets = (annotation.links || [])
+              .map((id) => annotations.find((a) => a.id === id))
+              .filter(Boolean);
+            return (
+              <article
+                key={annotation.id}
+                id={`ann-${annotation.id}`}
+                className="annotation-card"
+                style={colorTone && colorTone !== 'transparent' ? { borderLeft: `3px solid ${colorTone}` } : undefined}
+              >
+                <div className="annotation-card-head">
+                  <div className="annotation-date mono">
+                    <span>{formatDate(annotation.date)}</span>
+                    {annotation.location && <span>{annotation.location}</span>}
+                    {annotation.color && (
+                      <span className="muted" style={{ textTransform: 'capitalize' }}>
+                        {COLOR_OPTIONS.find((c) => c.id === annotation.color)?.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="row" style={{ gap: 4 }}>
+                    <button className="btn small ghost" onClick={() => editAnnotation(annotation)}>Edit</button>
+                    <button className="btn small ghost" onClick={() => deleteAnnotation(annotation.id)}>Delete</button>
+                  </div>
                 </div>
-                <div className="row" style={{ gap: 4 }}>
-                  <button className="btn small ghost" onClick={() => editAnnotation(annotation)}>Edit</button>
-                  <button className="btn small ghost" onClick={() => deleteAnnotation(annotation.id)}>Delete</button>
-                </div>
-              </div>
-              {annotation.quote && (
-                <blockquote className="annotation-quote">{annotation.quote}</blockquote>
-              )}
-              {annotation.note && (
-                <div className="annotation-note serif">{annotation.note}</div>
-              )}
-              {annotation.tags?.length > 0 && (
-                <div className="annotation-tags">
-                  {annotation.tags.map((tag) => <span key={tag}>#{tag}</span>)}
-                </div>
-              )}
-            </article>
-          ))}
+                {annotation.quote && (
+                  <blockquote className="annotation-quote">
+                    {(annotation.marks?.length > 0)
+                      ? <MarkedQuote quote={annotation.quote} marks={annotation.marks} />
+                      : annotation.quote}
+                  </blockquote>
+                )}
+                {annotation.note && (
+                  <div className="annotation-note serif">{annotation.note}</div>
+                )}
+                {linkedTargets.length > 0 && (
+                  <div className="annotation-link-chips">
+                    {linkedTargets.map((t) => {
+                      const preview = (t.quote || t.note || '').slice(0, 32);
+                      return (
+                        <a
+                          key={t.id}
+                          className="link-chip"
+                          href={`#ann-${t.id}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const el = document.getElementById(`ann-${t.id}`);
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              el.classList.add('flash');
+                              setTimeout(() => el.classList.remove('flash'), 1200);
+                            }
+                          }}
+                        >
+                          → {preview}…
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+                {annotation.tags?.length > 0 && (
+                  <div className="annotation-tags">
+                    {annotation.tags.map((tag) => <span key={tag}>#{tag}</span>)}
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       </div>
 

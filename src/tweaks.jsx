@@ -1,6 +1,7 @@
 import { buildObsidianMarkdown } from './obsidian.js';
+import { SyncPanel } from './syncPanel.jsx';
 
-export function Tweaks({ state, setState, visible, onClose }) {
+export function Tweaks({ state, setState, visible, onClose, sync }) {
   if (!visible) return null;
 
   const themes = [
@@ -104,6 +105,14 @@ export function Tweaks({ state, setState, visible, onClose }) {
         <label>Obsidian</label>
         <button className="btn small" onClick={exportObsidian}>Export .md</button>
       </div>
+
+      {sync && (
+        <>
+          <div className="tweaks-divider" />
+          <h4 style={{ margin: '4px 0 6px' }}>Sync across devices</h4>
+          <SyncPanel sync={sync} />
+        </>
+      )}
 
       <div className="tweaks-note">
         Notes live in this browser's storage. Export regularly if they matter.

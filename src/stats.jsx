@@ -1,5 +1,5 @@
 import React from 'react';
-import { isoDaysAgo, today } from './data.js';
+import { CATEGORIES, isoDaysAgo, today } from './data.js';
 import { Icon } from './Icon.jsx';
 import { Card, ProgressBar } from './ui.jsx';
 
@@ -59,6 +59,68 @@ export function StatsStrip({ state }) {
         </div>
       </div>
     </div>
+  );
+}
+
+export function ReadingVelocity({ state }) {
+  const cutoff = isoDaysAgo(30);
+
+  const bookCategory = new Map();
+  state.books.forEach((b) => bookCategory.set(b.id, b.category));
+  state.completed.forEach((b) => bookCategory.set(b.id, b.category));
+
+  const minutesByCat = {};
+  state.sessions.forEach((s) => {
+    if (s.date < cutoff) return;
+    const cat = bookCategory.get(s.bookId);
+    if (!cat) return;
+    minutesByCat[cat] = (minutesByCat[cat] || 0) + (s.minutes || 0);
+  });
+
+  const pagesByCat = {};
+  const addEntries = (bookId, entries) => {
+    const cat = bookCategory.get(bookId);
+    if (!cat || !entries) return;
+    entries.forEach((e) => {
+      if (!e?.date || e.date < cutoff) return;
+      pagesByCat[cat] = (pagesByCat[cat] || 0) + (Number(e.pages) || 0);
+    });
+  };
+  state.books.forEach((b) => addEntries(b.id, state.entries[b.id]));
+  state.completed.forEach((b) => addEntries(b.id, b.entries));
+
+  const rows = Object.keys(CATEGORIES)
+    .map((cat) => {
+      const minutes = minutesByCat[cat] || 0;
+      const pages = pagesByCat[cat] || 0;
+      const pph = minutes > 0 ? (pages / (minutes / 60)) : 0;
+      return { cat, minutes, pages, pph };
+    })
+    .filter((r) => r.minutes > 0 || r.pages > 0)
+    .sort((a, b) => b.pph - a.pph);
+
+  return (
+    <Card title="Reading velocity" right={<span className="note" style={{ margin: 0 }}>last 30 days</span>}>
+      {rows.length === 0 ? (
+        <div className="muted" style={{ fontSize: 13 }}>Log a session and a few pages to see your pace.</div>
+      ) : (
+        <div className="velocity-grid">
+          {rows.map((r) => (
+            <div key={r.cat} className="velocity-row">
+              <span className="velocity-cat" style={{ color: CATEGORIES[r.cat].tone }}>
+                {CATEGORIES[r.cat].label}
+              </span>
+              <span className="velocity-pph mono">
+                {r.pph > 0 ? r.pph.toFixed(1) : '—'}<small> pp/hr</small>
+              </span>
+              <span className="velocity-meta muted">
+                {r.pages} pp · {Math.round(r.minutes)} min
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 

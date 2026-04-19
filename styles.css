@@ -1508,3 +1508,154 @@ a { color: inherit; }
 @media (max-width: 720px) {
   .tweaks { left: 16px; right: 16px; max-width: none; }
 }
+
+.velocity-grid { display: flex; flex-direction: column; gap: 10px; }
+.velocity-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.velocity-row:last-child { border-bottom: none; }
+.velocity-cat { font-weight: 600; font-size: 13px; }
+.velocity-pph { font-size: 15px; }
+.velocity-pph small { font-size: 11px; margin-left: 3px; opacity: 0.7; }
+.velocity-meta { font-size: 12px; }
+
+.tweaks-divider { height: 1px; background: var(--line); margin: 12px 0 8px; }
+.sync-panel { display: flex; flex-direction: column; gap: 8px; }
+.sync-input {
+  font: inherit;
+  flex: 1;
+  min-width: 160px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-1);
+  color: var(--ink-1);
+}
+.sync-pair { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.sync-qr {
+  width: 128px; height: 128px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: white;
+  padding: 4px;
+}
+.sync-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ink-3);
+  display: inline-block;
+}
+.sync-dot.status-ok { background: oklch(60% 0.15 150); }
+.sync-dot.status-syncing { background: oklch(70% 0.15 80); animation: pulse-dot 1s ease-in-out infinite; }
+.sync-dot.status-error { background: oklch(60% 0.18 25); }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Marginalia — marks, colors, links */
+.mark-editor {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--bg-1);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mark-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mark-label { font-size: 12px; }
+
+.marked-quote {
+  font-family: var(--font-serif, Georgia, serif);
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ink-1);
+}
+.marked-quote.interactive .mq-word { cursor: pointer; }
+.marked-quote.interactive .mq-word:hover { background: color-mix(in oklch, var(--accent) 12%, transparent); }
+.mq-word { padding: 1px 0; transition: background 80ms ease; border-radius: 2px; }
+.mq-underline { box-shadow: inset 0 -2px 0 0 var(--accent); }
+.mq-underline.mq-underline-join { box-shadow: inset 0 -2px 0 0 var(--accent); }
+.mq-circle {
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+  padding: 1px 6px;
+  margin: 0 1px;
+}
+.mq-bracket {
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  padding: 0 4px;
+  margin: 0 1px;
+}
+.mq-bracket.mq-bracket-join { border-left: none; border-right: none; padding: 0; }
+
+.annotation-color-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.color-swatch {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+}
+.color-swatch.active {
+  outline: 2px solid var(--ink-1);
+  outline-offset: 1px;
+}
+
+.annotation-link-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.annotation-link-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
+  background: color-mix(in oklch, var(--accent) 10%, var(--bg-1));
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink-1);
+  text-decoration: none;
+  cursor: pointer;
+}
+.link-chip button {
+  background: none; border: none; cursor: pointer; color: var(--ink-3);
+  font-size: 14px; padding: 0; line-height: 1;
+}
+.link-chip:hover { background: color-mix(in oklch, var(--accent) 18%, var(--bg-1)); }
+
+.link-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.link-option {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink-1);
+}
+.link-option:hover { background: var(--bg-1); }
+.link-option.active { border-color: var(--accent); background: color-mix(in oklch, var(--accent) 8%, transparent); }
+
+@keyframes flash-bg {
+  0%, 100% { background: transparent; }
+  20%, 60% { background: color-mix(in oklch, var(--accent) 25%, transparent); }
+}
+.annotation-card.flash { animation: flash-bg 1.2s ease; }

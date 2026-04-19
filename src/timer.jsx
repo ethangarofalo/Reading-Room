@@ -3,15 +3,41 @@ import { CATEGORIES, mmss } from './data.js';
 import { Icon } from './Icon.jsx';
 import { Segmented } from './ui.jsx';
 
+const notify = (title, body) => {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission === 'granted') {
+    try { new Notification(title, { body, silent: false }); } catch {}
+  }
+};
+
+const requestNotifyPermission = () => {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+};
+
 export function DeepWorkTimer({ state, setState, onComplete, compact, bookOverride }) {
   const [mode, setMode] = React.useState('pomodoro');
-  const [running, setRunning] = React.useState(false);
-  const [elapsed, setElapsed] = React.useState(0);
+  const [startedAt, setStartedAt] = React.useState(null); // epoch ms when current run started, null if paused
+  const [accumulated, setAccumulated] = React.useState(0); // seconds banked from prior runs in this session
+  const [, setTick] = React.useState(0);
   const [pomStage, setPomStage] = React.useState('focus');
   const [pomFocusMin, setPomFocusMin] = React.useState(25);
   const [pomBreakMin, setPomBreakMin] = React.useState(5);
   const [countdownMin, setCountdownMin] = React.useState(60);
   const [bookId, setBookId] = React.useState(bookOverride || state.activeBookId || state.books[0]?.id);
+
+  const running = startedAt != null;
+  const elapsed = Math.floor(accumulated + (running ? (Date.now() - startedAt) / 1000 : 0));
+
+  // Refs for use inside callbacks/effects to avoid stale closures
+  const bookIdRef = React.useRef(bookId);
+  React.useEffect(() => { bookIdRef.current = bookId; }, [bookId]);
+  const setStateRef = React.useRef(setState);
+  React.useEffect(() => { setStateRef.current = setState; }, [setState]);
+  const onCompleteRef = React.useRef(onComplete);
+  React.useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
 
   React.useEffect(() => {
     if (bookOverride) setBookId(bookOverride);
@@ -38,62 +64,97 @@ export function DeepWorkTimer({ state, setState, onComplete, compact, bookOverri
     };
   }, [running]);
 
+  // UI tick — only for re-render; truth lives in timestamps
   React.useEffect(() => {
     if (!running) return;
-    const i = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(i);
+    const i = setInterval(() => setTick((t) => t + 1), 1000);
+    const onVis = () => setTick((t) => t + 1);
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(i);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [running]);
 
-  const logSession = (minutes) => {
-    if (!minutes || minutes < 1 || !bookId) return;
+  const logSession = React.useCallback((minutes) => {
+    const id = bookIdRef.current;
+    if (!minutes || minutes < 1 || !id) return;
     const d = new Date();
     const session = {
       date: d.toISOString().slice(0, 10),
       startHour: d.getHours(),
       minutes: Math.round(minutes),
-      bookId,
+      bookId: id,
     };
-    setState((s) => ({ ...s, sessions: [...s.sessions, session] }));
+    setStateRef.current((s) => ({ ...s, sessions: [...s.sessions, session] }));
     if (navigator.vibrate) navigator.vibrate(80);
-    onComplete && onComplete(session);
-  };
+    onCompleteRef.current && onCompleteRef.current(session);
+  }, []);
 
+  // Pomodoro stage transitions — timestamp-driven
   React.useEffect(() => {
     if (mode !== 'pomodoro' || !running) return;
     const target = (pomStage === 'focus' ? pomFocusMin : pomBreakMin) * 60;
     if (elapsed >= target) {
       if (pomStage === 'focus') {
         logSession(target / 60);
+        notify('Focus complete', `Time for a ${pomBreakMin}-minute break.`);
         setPomStage('break');
       } else {
+        notify('Break over', 'Back to the page.');
         setPomStage('focus');
       }
-      setElapsed(0);
+      setAccumulated(0);
+      setStartedAt(Date.now());
     }
-  }, [elapsed, running, mode, pomStage, pomFocusMin, pomBreakMin]);
+  }, [elapsed, running, mode, pomStage, pomFocusMin, pomBreakMin, logSession]);
 
+  // Countdown completion
   React.useEffect(() => {
     if (mode !== 'countdown' || !running) return;
     if (elapsed >= countdownMin * 60) {
       logSession(countdownMin);
-      setRunning(false);
-      setElapsed(0);
+      notify('Session complete', `${countdownMin} minutes logged.`);
+      setStartedAt(null);
+      setAccumulated(0);
     }
-  }, [elapsed, running, mode, countdownMin]);
+  }, [elapsed, running, mode, countdownMin, logSession]);
+
+  const start = () => {
+    requestNotifyPermission();
+    setStartedAt(Date.now());
+  };
+
+  const pause = () => {
+    if (startedAt != null) {
+      setAccumulated((a) => a + (Date.now() - startedAt) / 1000);
+      setStartedAt(null);
+    }
+  };
+
+  const toggle = () => (running ? pause() : start());
 
   const stop = () => {
-    if (mode === 'stopwatch' && elapsed >= 60) logSession(elapsed / 60);
-    if (mode === 'pomodoro' && pomStage === 'focus' && elapsed >= 60) logSession(elapsed / 60);
-    if (mode === 'countdown' && elapsed >= 60) logSession(elapsed / 60);
-    setRunning(false);
-    setElapsed(0);
+    const finalElapsed = Math.floor(accumulated + (running ? (Date.now() - startedAt) / 1000 : 0));
+    if (mode === 'stopwatch' && finalElapsed >= 60) logSession(finalElapsed / 60);
+    if (mode === 'pomodoro' && pomStage === 'focus' && finalElapsed >= 60) logSession(finalElapsed / 60);
+    if (mode === 'countdown' && finalElapsed >= 60) logSession(finalElapsed / 60);
+    setStartedAt(null);
+    setAccumulated(0);
+    setPomStage('focus');
+  };
+
+  const switchMode = (v) => {
+    setMode(v);
+    setStartedAt(null);
+    setAccumulated(0);
     setPomStage('focus');
   };
 
   let display, total, label;
   if (mode === 'pomodoro') {
     total = (pomStage === 'focus' ? pomFocusMin : pomBreakMin) * 60;
-    display = mmss(total - elapsed);
+    display = mmss(Math.max(0, total - elapsed));
     label = pomStage === 'focus' ? 'Focus' : 'Break';
   } else if (mode === 'stopwatch') {
     total = 0;
@@ -101,7 +162,7 @@ export function DeepWorkTimer({ state, setState, onComplete, compact, bookOverri
     label = 'Stopwatch';
   } else {
     total = countdownMin * 60;
-    display = mmss(total - elapsed);
+    display = mmss(Math.max(0, total - elapsed));
     label = 'Countdown';
   }
 
@@ -131,7 +192,7 @@ export function DeepWorkTimer({ state, setState, onComplete, compact, bookOverri
       <div className="timer-controls">
         <Segmented
           value={mode}
-          onChange={(v) => { setMode(v); setElapsed(0); setRunning(false); setPomStage('focus'); }}
+          onChange={switchMode}
           options={[
             { value: 'pomodoro', label: 'Pomodoro' },
             { value: 'stopwatch', label: 'Stopwatch' },
@@ -178,7 +239,7 @@ export function DeepWorkTimer({ state, setState, onComplete, compact, bookOverri
         )}
 
         <div className="timer-row">
-          <button className="btn primary" onClick={() => setRunning((r) => !r)} disabled={!hasBooks}>
+          <button className="btn primary" onClick={toggle} disabled={!hasBooks}>
             <Icon name={running ? 'pause' : 'play'} />
             {running ? 'Pause' : 'Start'}
           </button>
