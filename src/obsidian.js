@@ -74,6 +74,7 @@ function annotationMarkdown({ annotation, book, status }) {
     `- Author: ${book.author || 'Unknown'}`,
     `- Category: ${category}`,
     `- Status: ${status}`,
+    annotation.source === 'photo' ? '- Source: photo scan' : null,
     annotation.location ? `- Location: ${annotation.location}` : null,
     tags ? `- Tags: ${tags}` : null,
   ].filter((line) => line != null);

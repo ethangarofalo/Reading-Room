@@ -14,6 +14,7 @@ const appendTranscript = (base, addition) => {
 };
 
 const MARK_KINDS = ['underline', 'circle', 'bracket'];
+const LOW_OCR_CONFIDENCE = 75;
 
 const COLOR_OPTIONS = [
   { id: null,         label: 'None',       tone: 'transparent' },
@@ -32,6 +33,9 @@ const emptyAnnotationDraft = {
   marks: [],
   links: [],
   color: null,
+  source: 'manual',
+  ocr: null,
+  imageThumbB64: null,
 };
 
 const splitWords = (text) => String(text || '').split(/(\s+)/).filter((s) => s.length > 0);
@@ -57,7 +61,7 @@ const toggleMark = (marks, word, kind) => {
 const adjacentSameKind = (marks, word, kind) =>
   marks.some((m) => m.kind === kind && (m.word === word - 1 || m.word === word + 1));
 
-function MarkedQuote({ quote, marks, interactive, activeMark, onToggleMark }) {
+function MarkedQuote({ quote, marks, interactive, activeMark, onToggleMark, ocrWords = [] }) {
   if (!quote) return null;
   const tokens = splitWords(quote);
   const idx = wordIndices(tokens);
@@ -70,11 +74,13 @@ function MarkedQuote({ quote, marks, interactive, activeMark, onToggleMark }) {
         const u = hasMark(safeMarks, w, 'underline');
         const c = hasMark(safeMarks, w, 'circle');
         const b = hasMark(safeMarks, w, 'bracket');
+        const lowOcrConfidence = ocrWords[w]?.confidence != null && ocrWords[w].confidence < LOW_OCR_CONFIDENCE;
         const cls = [
           'mq-word',
           u && 'mq-underline',
           c && 'mq-circle',
           b && 'mq-bracket',
+          lowOcrConfidence && 'mq-low-confidence',
           u && adjacentSameKind(safeMarks, w, 'underline') && 'mq-underline-join',
           b && adjacentSameKind(safeMarks, w, 'bracket') && 'mq-bracket-join',
         ].filter(Boolean).join(' ');
@@ -104,6 +110,28 @@ const parseTags = (value) =>
 
 const formatTags = (tags) => (tags || []).join(', ');
 
+const normalizeOcrText = (text) =>
+  String(text || '')
+    .replace(/-\s*\n\s*/g, '')
+    .replace(/\s*\n+\s*/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+
+const collectOcrWords = (blocks = []) => {
+  const words = [];
+  blocks.forEach((block) => {
+    (block.paragraphs || []).forEach((paragraph) => {
+      (paragraph.lines || []).forEach((line) => {
+        (line.words || []).forEach((word) => {
+          const text = String(word.text || '').trim();
+          if (text) words.push({ text, confidence: Math.round(word.confidence ?? 100) });
+        });
+      });
+    });
+  });
+  return words;
+};
+
 export function Journal({ state, setState }) {
   const activeId = state.activeBookId || state.books[0]?.id;
   const book = state.books.find((b) => b.id === activeId);
@@ -121,11 +149,15 @@ export function Journal({ state, setState }) {
   const [editingAnnotationId, setEditingAnnotationId] = React.useState(null);
   const [activeMark, setActiveMark] = React.useState('underline');
   const [linkPickerOpen, setLinkPickerOpen] = React.useState(false);
+  const [ocrStatus, setOcrStatus] = React.useState('');
+  const [ocrProgress, setOcrProgress] = React.useState(0);
+  const [ocrError, setOcrError] = React.useState('');
   const [savedFlash, setSavedFlash] = React.useState(false);
   const [listening, setListening] = React.useState(false);
   const [interimTranscript, setInterimTranscript] = React.useState('');
   const [speechError, setSpeechError] = React.useState('');
   const recognitionRef = React.useRef(null);
+  const scanInputRef = React.useRef(null);
   const speechSupported = typeof window !== 'undefined' && !!getSpeechRecognition();
 
   React.useEffect(() => {
@@ -133,6 +165,9 @@ export function Journal({ state, setState }) {
     setPages(book?.pagesToday || 0);
     setAnnotationDraft(emptyAnnotationDraft);
     setEditingAnnotationId(null);
+    setOcrStatus('');
+    setOcrProgress(0);
+    setOcrError('');
     setInterimTranscript('');
     setSpeechError('');
     recognitionRef.current?.abort();
@@ -233,6 +268,67 @@ export function Journal({ state, setState }) {
     else startVoiceNote();
   };
 
+  const handleScanQuote = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setOcrError('');
+    setOcrStatus('Preparing local OCR...');
+    setOcrProgress(0);
+
+    let worker;
+    try {
+      const { createWorker, PSM } = await import('tesseract.js');
+      worker = await createWorker('eng', 1, {
+        logger: (message) => {
+          if (message?.status) setOcrStatus(message.status);
+          if (typeof message?.progress === 'number') setOcrProgress(Math.round(message.progress * 100));
+        },
+      });
+      await worker.setParameters({
+        preserve_interword_spaces: '1',
+        tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+      });
+
+      setOcrStatus('Reading image...');
+      const { data } = await worker.recognize(file, {}, { blocks: true });
+      const quote = normalizeOcrText(data.text);
+      const words = collectOcrWords(data.blocks || []);
+
+      if (!quote) {
+        setOcrError('I could not find readable text in that image. Try more light or a flatter page.');
+        setOcrStatus('');
+        setOcrProgress(0);
+        return;
+      }
+
+      setAnnotationDraft((draft) => ({
+        ...draft,
+        quote,
+        marks: [],
+        source: 'photo',
+        ocr: {
+          engine: 'tesseract.js',
+          capturedAt: new Date().toISOString(),
+          confidence: Math.round(data.confidence ?? 0),
+          words,
+          cloudRetryAvailable: true,
+        },
+        imageThumbB64: null,
+      }));
+      setActiveMark('underline');
+      setOcrStatus('I found the passage. Now what do you think?');
+      setOcrProgress(100);
+    } catch (err) {
+      setOcrError(err?.message || 'Could not scan the quote.');
+      setOcrStatus('');
+      setOcrProgress(0);
+    } finally {
+      if (worker) await worker.terminate().catch(() => {});
+    }
+  };
+
   const saveAnnotation = () => {
     if (!book) return;
     const quote = annotationDraft.quote.trim();
@@ -256,11 +352,13 @@ export function Journal({ state, setState }) {
         note,
         location,
         tags,
-        source: existing?.source || 'manual',
+        source: annotationDraft.source || existing?.source || 'manual',
         marks: validMarks,
         links: annotationDraft.links || [],
         color: annotationDraft.color || null,
         anchor: existing?.anchor || { prefix: '', suffix: '' },
+        ocr: annotationDraft.ocr || existing?.ocr || null,
+        imageThumbB64: annotationDraft.imageThumbB64 ?? existing?.imageThumbB64 ?? null,
       };
 
       const nextList = editingAnnotationId
@@ -279,6 +377,9 @@ export function Journal({ state, setState }) {
     setAnnotationDraft(emptyAnnotationDraft);
     setEditingAnnotationId(null);
     setLinkPickerOpen(false);
+    setOcrStatus('');
+    setOcrProgress(0);
+    setOcrError('');
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1200);
   };
@@ -293,6 +394,9 @@ export function Journal({ state, setState }) {
       marks: annotation.marks || [],
       links: annotation.links || [],
       color: annotation.color || null,
+      source: annotation.source || 'manual',
+      ocr: annotation.ocr || null,
+      imageThumbB64: annotation.imageThumbB64 || null,
     });
   };
 
@@ -307,12 +411,18 @@ export function Journal({ state, setState }) {
     if (editingAnnotationId === id) {
       setEditingAnnotationId(null);
       setAnnotationDraft(emptyAnnotationDraft);
+      setOcrStatus('');
+      setOcrProgress(0);
+      setOcrError('');
     }
   };
 
   const cancelAnnotationEdit = () => {
     setEditingAnnotationId(null);
     setAnnotationDraft(emptyAnnotationDraft);
+    setOcrStatus('');
+    setOcrProgress(0);
+    setOcrError('');
   };
 
   if (!book) {
@@ -406,6 +516,26 @@ export function Journal({ state, setState }) {
         </div>
 
         <div className="annotation-form">
+          <div className="scan-row">
+            <button className="btn small" type="button" onClick={() => scanInputRef.current?.click()}>
+              Scan quote
+            </button>
+            <input
+              ref={scanInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleScanQuote}
+              style={{ display: 'none' }}
+            />
+            {(ocrStatus || ocrError) && (
+              <span className={`scan-status ${ocrError ? 'error' : ''}`}>
+                {ocrError || ocrStatus}
+                {!ocrError && ocrProgress > 0 && ocrProgress < 100 ? ` ${ocrProgress}%` : ''}
+              </span>
+            )}
+          </div>
+
           <textarea
             className="annotation-field annotation-quote-input"
             placeholder="Quote / passage"
@@ -440,12 +570,18 @@ export function Journal({ state, setState }) {
               <MarkedQuote
                 quote={annotationDraft.quote}
                 marks={annotationDraft.marks}
+                ocrWords={annotationDraft.ocr?.words || []}
                 interactive
                 activeMark={activeMark}
                 onToggleMark={(word, kind) =>
                   setAnnotationDraft((d) => ({ ...d, marks: toggleMark(d.marks || [], word, kind) }))
                 }
               />
+              {annotationDraft.ocr?.words?.some((word) => word.confidence < LOW_OCR_CONFIDENCE) && (
+                <div className="ocr-review-note">
+                  Light warning marks show words the scan is less sure about.
+                </div>
+              )}
             </div>
           )}
 
@@ -584,8 +720,8 @@ export function Journal({ state, setState }) {
                 </div>
                 {annotation.quote && (
                   <blockquote className="annotation-quote">
-                    {(annotation.marks?.length > 0)
-                      ? <MarkedQuote quote={annotation.quote} marks={annotation.marks} />
+                    {(annotation.marks?.length > 0 || annotation.ocr?.words?.length > 0)
+                      ? <MarkedQuote quote={annotation.quote} marks={annotation.marks} ocrWords={annotation.ocr?.words || []} />
                       : annotation.quote}
                   </blockquote>
                 )}

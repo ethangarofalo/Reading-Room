@@ -895,6 +895,22 @@ a { color: inherit; }
   gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
+.scan-row {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.scan-status {
+  color: var(--ink-3);
+  font-family: var(--font-serif);
+  font-size: 13px;
+  font-style: italic;
+}
+.scan-status.error {
+  color: color-mix(in oklch, var(--accent) 78%, var(--ink));
+}
 .annotation-field,
 .annotation-input {
   width: 100%;
@@ -1579,6 +1595,13 @@ a { color: inherit; }
 .marked-quote.interactive .mq-word { cursor: pointer; }
 .marked-quote.interactive .mq-word:hover { background: color-mix(in oklch, var(--accent) 12%, transparent); }
 .mq-word { padding: 1px 0; transition: background 80ms ease; border-radius: 2px; }
+.mq-low-confidence {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--warn);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
 .mq-underline { box-shadow: inset 0 -2px 0 0 var(--accent); }
 .mq-underline.mq-underline-join { box-shadow: inset 0 -2px 0 0 var(--accent); }
 .mq-circle {
@@ -1594,6 +1617,12 @@ a { color: inherit; }
   margin: 0 1px;
 }
 .mq-bracket.mq-bracket-join { border-left: none; border-right: none; padding: 0; }
+.ocr-review-note {
+  color: var(--ink-3);
+  font-family: var(--font-serif);
+  font-size: 12px;
+  font-style: italic;
+}
 
 .annotation-color-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .color-swatch {
