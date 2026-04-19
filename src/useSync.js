@@ -16,7 +16,7 @@ export function useSync(state, setState) {
   React.useEffect(() => { stateRef.current = state; }, [state]);
 
   const doPull = React.useCallback(async (cfg) => {
-    if (!cfg) return;
+    if (!cfg) return undefined;
     setStatus('syncing');
     try {
       const remote = await pullRoom(cfg);
@@ -30,9 +30,11 @@ export function useSync(state, setState) {
       }
       setStatus('ok');
       setLastError(null);
+      return remote;
     } catch (err) {
       setStatus('error');
       setLastError(err.message);
+      return undefined;
     }
   }, [setState]);
 
@@ -70,8 +72,16 @@ export function useSync(state, setState) {
     if (!config) { setStatus('idle'); return; }
     versionRef.current = 0;
     lastSerializedRef.current = null;
-    doPull(config);
-  }, [config, doPull]);
+    let cancelled = false;
+    (async () => {
+      const remote = await doPull(config);
+      if (!cancelled && remote === null) {
+        lastSerializedRef.current = JSON.stringify(null);
+        await doPush(config);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [config, doPull, doPush]);
 
   // Periodic pull
   React.useEffect(() => {

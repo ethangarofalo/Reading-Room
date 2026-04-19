@@ -4,7 +4,14 @@
 const SYNC_CONFIG_KEY = 'reading-dashboard-sync-v1';
 
 const b64u = {
-  encode: (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+  encode: (bytes) => {
+    let bin = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      bin += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  },
   decode: (str) => {
     const pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4));
     const bin = atob(str.replace(/-/g, '+').replace(/_/g, '/') + pad);
