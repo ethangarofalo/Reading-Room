@@ -89,6 +89,20 @@ Typical settings:
 - Build command: `npm run build`
 - Output directory: `dist`
 
+## GitHub Pages
+
+This repo includes a GitHub Actions workflow at `.github/workflows/deploy.yml`. Every push to `main` builds the app and deploys `dist/` to GitHub Pages.
+
+For this repository, the Pages URL should be:
+
+```text
+https://ethangarofalo.github.io/Reading-Room/
+```
+
+If the first deploy does not appear automatically, open the repository on GitHub and go to **Settings > Pages**. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+
+For a public repository, GitHub Pages and the Actions minutes used by this workflow should be free under GitHub's current public-repository limits. Private repositories may depend on your GitHub plan.
+
 ## Repository Notes
 
 The Vite source files are the source of truth. `Reading Dashboard.html` was an older standalone prototype and is intentionally ignored by Git.
